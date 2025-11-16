@@ -21,7 +21,7 @@ const (
 )
 
 type PracujScraper struct {
-	timeoutBetweenScraps time.Duration
+	TimeoutBetweenScraps time.Duration
 	collector            *colly.Collector
 	urls                 []string
 }
@@ -33,7 +33,7 @@ func NewPracujScraper(urls []string) *PracujScraper {
 		//colly.Async(true),
 	)
 
-// #nosec G104 - false positive i guess
+	// #nosec G104 - false positive i guess
 	c.Limit(&colly.LimitRule{
 		DomainGlob:  "*pracuj.pl*",
 		Parallelism: 2,
@@ -41,7 +41,7 @@ func NewPracujScraper(urls []string) *PracujScraper {
 	})
 
 	return &PracujScraper{
-		timeoutBetweenScraps: 10 * time.Second,
+		TimeoutBetweenScraps: 10 * time.Second,
 		collector:            c,
 		urls:                 urls,
 	}
@@ -115,7 +115,7 @@ func (p *PracujScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) e
 
 	// Pętla po URL-ach
 	for _, url := range p.urls {
-		time.Sleep(p.timeoutBetweenScraps)
+		time.Sleep(p.TimeoutBetweenScraps)
 		log.Println("Waiting timeoutBetweenScraps")
 		if err := p.collector.Visit(url); err != nil {
 			log.Printf("Visit error: %v", err)
