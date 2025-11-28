@@ -2,12 +2,20 @@ package scrapers
 
 import (
 	"context"
-	"github.com/gocolly/colly"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/chromedp"
 	"github.com/pfczx/jobscraper/iternal/scraper"
 	"log"
+	"math/rand"
 	"strings"
 	"time"
 )
+
+var proxyList = []string{
+	"213.73.25.231:8080",
+	
+}
 
 const (
 	titleSelector         = "h1[data-scroll-id='job-title']"
@@ -20,30 +28,18 @@ const (
 	contractTypeSelector  = `span[data-test="text-contractTypeName"]`
 )
 
+// wait times are random (min,max) in seconds
 type PracujScraper struct {
-	TimeoutBetweenScraps time.Duration
-	collector            *colly.Collector
-	urls                 []string
+	minTimeS int
+	maxTimeS int
+	urls     []string
 }
 
-// controls
 func NewPracujScraper(urls []string) *PracujScraper {
-	c := colly.NewCollector(
-		colly.AllowedDomains("www.pracuj.pl", "pracuj.pl"),
-		//colly.Async(true),
-	)
-
-	// #nosec G104 - false positive i guess
-	c.Limit(&colly.LimitRule{
-		DomainGlob:  "*pracuj.pl*",
-		Parallelism: 2,
-		RandomDelay: 2 * time.Second,
-	})
-
 	return &PracujScraper{
-		TimeoutBetweenScraps: 10 * time.Second,
-		collector:            c,
-		urls:                 urls,
+		minTimeS: 20,
+		maxTimeS: 40,
+		urls:     urls,
 	}
 }
 
@@ -51,78 +47,113 @@ func (*PracujScraper) Source() string {
 	return "pracuj.pl"
 }
 
-func (p *PracujScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) error {
-	p.collector.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+// extracting data from string html with goquer selectors
+func (p *PracujScraper) extractDataFromHTML(html string, url string) (scraper.JobOffer, error) {
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+	if err != nil {
+		log.Printf("goquery parse error: %v", err)
+		return scraper.JobOffer{}, err
+	}
+	var job scraper.JobOffer
+	job.URL = url
+	job.Source = p.Source()
+	job.Title = strings.TrimSpace(doc.Find(titleSelector).Text())
+	job.Company = strings.TrimSpace(doc.Find(companySelector).Text())
+	job.Location = strings.TrimSpace(doc.Find(locationSelector).Text())
 
-	p.collector.OnHTML("html", func(e *colly.HTMLElement) {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
-
-		var job scraper.JobOffer
-		job.URL = e.Request.URL.String()
-		job.Source = p.Source()
-		job.Title = e.ChildText(titleSelector)
-		job.Company = e.ChildText(companySelector)
-		job.Location = e.ChildText(locationSelector)
-
-		// description
-		e.ForEach(descriptionSelector+" li", func(_ int, el *colly.HTMLElement) {
-			if text := el.Text; text != "" {
-				job.Description += text + "\n"
-			}
-		})
-
-		// skills
-		var skills []string
-		e.ForEach(skillsSelector, func(_ int, el *colly.HTMLElement) {
-			if text := el.Text; text != "" {
-				skills = append(skills, text)
-			}
-		})
-		job.Skills = skills
-
-		// salary
-
-		e.ForEach(salarySectionSelector, func(_ int, el *colly.HTMLElement) {
-			sectionText := strings.TrimSpace(el.Text)
-			parts := strings.Split(sectionText, "|")
-			if len(parts) != 2 {
-				return
-			}
-			amount := strings.TrimSpace(parts[0])
-			ctype := strings.TrimSpace(parts[1])
-
-			if ctype == "umowa o pracę" {
-				job.SalaryEmployment = amount
-			}
-			if ctype == "umowa zlecenie" {
-				job.SalaryContract = amount
-			}
-			if ctype == "kontrakt B2B" {
-				job.SalaryB2B = amount
-			}
-		})
-
-		select {
-		case <-ctx.Done():
-			return
-		case q <- job:
+	doc.Find(descriptionSelector).Each(func(_ int, s *goquery.Selection) {
+		t := strings.TrimSpace(s.Text())
+		if t != "" {
+			job.Description += t + "\n"
 		}
 	})
 
-	// Pętla po URL-ach
-	for _, url := range p.urls {
-		time.Sleep(p.TimeoutBetweenScraps)
-		log.Println("Waiting timeoutBetweenScraps")
-		if err := p.collector.Visit(url); err != nil {
-			log.Printf("Visit error: %v", err)
-			return err
+	doc.Find(skillsSelector).Each(func(_ int, s *goquery.Selection) {
+		t := strings.TrimSpace(s.Text())
+		if t != "" {
+			job.Skills = append(job.Skills, t)
 		}
+	})
+
+	doc.Find(salarySectionSelector).Each(func(_ int, s *goquery.Selection) {
+		parts := strings.Split(strings.TrimSpace(s.Text()), "|")
+		if len(parts) != 2 {
+			return
+		}
+
+		amount := strings.TrimSpace(parts[0])
+		ctype := strings.TrimSpace(parts[1])
+
+		switch ctype {
+		case "umowa o pracę":
+			job.SalaryEmployment = amount
+		case "umowa zlecenie":
+			job.SalaryContract = amount
+		case "kontrakt B2B":
+			job.SalaryB2B = amount
+		}
+	})
+
+	return job, nil
+}
+
+// html chromedp
+func (p *PracujScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
+	var html string
+
+	//chromdp run config
+	err := chromedp.Run(
+		chromeDpCtx,
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
+		}),
+		chromedp.Navigate(url),
+		chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
+		chromedp.WaitVisible("body", chromedp.ByQuery),
+		chromedp.OuterHTML("html", &html),
+	)
+	return html, err
+}
+
+// main func for scraping
+func (p *PracujScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) error {
+
+	//chromdp config
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", false),
+		chromedp.Flag("disable-gpu", false),
+		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
+			"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"),
+		//chromedp.Flag("proxy-server", proxyList[rand.Intn(len(proxyList))]),
+		chromedp.Flag("disable-web-security", true),
+		chromedp.Flag("disable-site-isolation-trials", true),
+	)
+	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, opts...)
+	defer cancelAlloc()
+
+	chromeDpCtx, cancelCtx := chromedp.NewContext(allocCtx)
+	defer cancelCtx()
+
+	for index, url := range p.urls {
+		html, err := p.getHTMLContent(chromeDpCtx, url)
+		if err != nil {
+			log.Printf("Chromedp error: %v", err)
+			continue
+		}
+
+		job, err := p.extractDataFromHTML(html, url)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case q <- job:
+		}
+
+		log.Printf("Scraped %d: %s", index, url)
+		randomDelay := rand.Intn(p.maxTimeS-p.minTimeS) + p.minTimeS
+		log.Printf("Sleeping for: %ds", randomDelay)
+		time.Sleep(time.Duration(randomDelay) * time.Second)
 	}
 
-	p.collector.Wait()
 	return nil
 }

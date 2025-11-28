@@ -33,3 +33,4 @@ go.work.sum
 
 /database/jobs.db
 out
+log*

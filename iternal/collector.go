@@ -33,7 +33,7 @@ func StartCollector(ctx context.Context, db *sql.DB, scrapers []scraper.Scraper)
 			SalaryContract:   sql.NullString{String: job.SalaryContract, Valid: job.SalaryContract != ""},
 		}
 		if _, err := querier.UpsertJobOffer(ctx, params); err != nil {
-			log.Printf("Error in saving: %s from %s", job.Title, job.Company)
+			log.Printf("Error %s in saving: %s from %s",err, job.Title, job.Company)
 		}
 	}
 }

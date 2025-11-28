@@ -10,6 +10,7 @@ import (
 	"github.com/pfczx/jobscraper/iternal"
 	"github.com/pfczx/jobscraper/iternal/scraper"
 	"github.com/pfczx/jobscraper/iternal/scraper/scrapers"
+	 "github.com/pyrczuu/urlScraper"
 )
 
 func main() {
@@ -19,12 +20,12 @@ func main() {
 	}
 	defer db.Close()
 
+	//read only for js backend
+	_, err = db.Exec("PRAGMA journal_mode=WAL;")
+
 	ctx := context.Background()
 
-	pracujUrls := []string{ //tutaj ma byc funkcja pracujUrls := urlgenerator.GenerateUrlsForPracuj()
-		"https://www.pracuj.pl/praca/junior-fullstack-developer-java-%2b-angular-poznan-krysiewicza-9,oferta,1004441708?s=e2cceb02&searchId=MTc2MjExODYyODE5MS4xMzU3&ref=top_boosterAI_L0_4_1_1",
-		"https://www.pracuj.pl/praca/senior-software-engineer-android-automotive-developer-platforms-krakow,oferta,1004410438?sug=list_top_cr_bd_1_tname_261_tgroup_B_boosterAI_L2&s=1f7c2c91&searchId=MTc2MjAyMTgyMzcyMC4wOTM1",
-	}
+	pracujUrls := urlsgocraper.CollectPracujPL()
 	pracujScraper := scrapers.NewPracujScraper(pracujUrls)
 
 	scrapersList := []scraper.Scraper{pracujScraper}
@@ -37,4 +38,5 @@ func main() {
 	}()
 
 	wg.Wait()
+	log.Println("-------------------")
 }
