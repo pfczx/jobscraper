@@ -10,7 +10,8 @@ import (
 	"github.com/pfczx/jobscraper/iternal"
 	"github.com/pfczx/jobscraper/iternal/scraper"
 	"github.com/pfczx/jobscraper/iternal/scraper/scrapers"
-	 "github.com/pyrczuu/urlScraper"
+	 //"github.com/pyrczuu/urlScraper"
+	"github.com/pfczx/jobscraper/urlgoscraper"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 
 	ctx := context.Background()
 
-	pracujUrls := urlsgocraper.CollectPracujPL()
+	pracujUrls := urlsgocraper.CollectPracujPL(ctx)
 	pracujScraper := scrapers.NewPracujScraper(pracujUrls)
 
 	scrapersList := []scraper.Scraper{pracujScraper}
