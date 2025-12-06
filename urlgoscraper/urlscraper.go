@@ -71,7 +71,8 @@ func getMaxPagePracujPl(html string) (int, error) {
 	maxPage := doc.Find(pageNumSelector).Text()
 	maxPageNum, _ := strconv.Atoi(strings.TrimSpace(maxPage))
 
-  return 1,nil
+	//testing
+  //return 1,nil
 	return maxPageNum, nil
 }
 
