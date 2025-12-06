@@ -33,7 +33,7 @@ const (
 	skillsSelector          = `span[data-test="item-technologies-expected"], span[data-test="item-technologies-optional"]` //concat in code
 	salarySectionSelector   = `div[data-test="section-salaryPerContractType"]`
 	requirementsSelector   = `section[data-test="section-requirements"]`
-	responsibilitiesSelector =`section[data-test="section-responsibilities`
+	responsibilitiesSelector =`section[data-test="section-responsibilities"]`
 )
 // wait times are random (min,max) in seconds
 type PracujScraper struct {

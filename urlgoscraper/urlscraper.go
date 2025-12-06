@@ -116,7 +116,8 @@ func CollectPracujPl(ctx context.Context) []string {
 		urls = append(urls, firstPageUrls...)
 		log.Printf("Scraped first page")
 	}
-	return firstPageUrls[:20]
+	//for testing
+	//return firstPageUrls[:20]
 
 	if maxPage > 2 {
 		for i := 2; i < maxPage; i++ {
