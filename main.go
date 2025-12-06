@@ -22,11 +22,13 @@ func main() {
 	defer db.Close()
 
 	//read only for js backend
-	_, err = db.Exec("PRAGMA journal_mode=WAL;")
+	//_, err = db.Exec("PRAGMA journal_mode=WAL;")
 
 	ctx := context.Background()
 
-	pracujUrls := urlsgocraper.CollectPracujPL(ctx)
+	pracujUrls := urlsgocraper.CollectPracujPl(ctx)
+
+
 	pracujScraper := scrapers.NewPracujScraper(pracujUrls)
 
 	scrapersList := []scraper.Scraper{pracujScraper}

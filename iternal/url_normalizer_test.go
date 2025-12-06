@@ -11,29 +11,15 @@ func TestNormalizeURL(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "remove scheme",
-			inputURL: "https://blog.boot.dev/path",
-			expected: "blog.boot.dev/path",
-		},
-		{
-			name:     "t2",
-			inputURL: "http://blog.blog.blog.deb.pl",
-			expected: "blog.blog.blog.deb.pl",
-		},
-		{
-			name:     "t3",
-			inputURL: "https://g.pl/dev/api/admin/",
-			expected: "g.pl/dev/api/admin",
+			name:     "urltest1",
+			inputURL: "https://www.pracuj.pl/praca/senior-engineer-mobile-android-krakow-kapelanka-42a,oferta,1004500759?s=1f7c2c91&searchId=MTc2NDUyMDk4NTY0MS40NDQ2",
+			expected: "https://www.pracuj.pl/praca/senior-engineer-mobile-android-krakow-kapelanka-42a,oferta,1004500759",
 		},
 	}
 
 	for i, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := normalizeURL(tc.inputURL)
-			if err != nil {
-				t.Errorf("Test %v - '%s' FAIL: unexpected error: %v", i, tc.name, err)
-				return
-			}
+			actual := urlNormalizer(tc.inputURL)
 			if actual != tc.expected {
 				t.Errorf("Test %v - %s FAIL: expected URL: %v, actual: %v", i, tc.name, tc.expected, actual)
 			}

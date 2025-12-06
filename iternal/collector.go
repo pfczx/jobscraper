@@ -24,7 +24,7 @@ func StartCollector(ctx context.Context, db *sql.DB, scrapers []scraper.Scraper)
 			Company:          sql.NullString{String: job.Company, Valid: job.Company != ""},
 			Location:         sql.NullString{String: job.Location, Valid: job.Location != ""},
 			Description:      sql.NullString{String: job.Description, Valid: job.Description != ""},
-			Url:              job.URL,
+			Url:              urlNormalizer(job.URL),
 			Source:           job.Source,
 			PublishedAt:      sql.NullTime{Time: time.Now(), Valid: true},
 			Skills:           sql.NullString{String: string(skillsJSON), Valid: len(job.Skills) > 0},
