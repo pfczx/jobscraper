@@ -22,6 +22,7 @@ var proxyList = []string{
 
 const (
 	browserDataDir = `/home/devpad/.config/google-chrome-canary/Default`
+	browserDir = `/usr/bin/google-chrome-canary`
 )
 
 // selectors
@@ -166,6 +167,7 @@ func (p *PracujScraper) extractDataFromHTML(html string, url string) (scraper.Jo
 	doc.Find(salarySectionSelector).Each(func(_ int, s *goquery.Selection) {
 		text := strings.TrimSpace(s.Text())
 		text = strings.ReplaceAll(text, "\u00A0", " ")
+		text =strings.ReplaceAll(text, "zł", "zł ") 
 
 		lower := strings.ToLower(text)
 		switch {
@@ -206,7 +208,7 @@ func (p *PracujScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) e
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(browserDir),
 		chromedp.UserDataDir(browserDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),

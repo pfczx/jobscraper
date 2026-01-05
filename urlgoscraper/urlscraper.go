@@ -37,6 +37,10 @@ func getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.OuterHTML("html", &html),
 	)
+	if err != nil{
+		log.Printf("Error %s",err)
+	}
+
 	return html, err
 }
 
