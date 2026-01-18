@@ -1,4 +1,2 @@
 # jobscraper
-
-na wzór [repozytorium pfczx](https://github.com/pfczx/jobscraper) 
-nie moglem zrobic 2 forka 
+Special thanks to pyrczuu for making jusjoin and nofluff scrapers
