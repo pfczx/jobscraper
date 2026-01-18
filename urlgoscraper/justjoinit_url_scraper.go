@@ -20,11 +20,9 @@ import (
 //browser session data dir
 
 const (
-	minTimeMs = 3000
-	maxTimeMs = 4000
-	//justjoinsource = "https://justjoin.it"
-	//testing only
-	justjoinsource        = "https://justjoin.it/job-offers/all-locations/go"
+	minTimeMs             = 3000
+	maxTimeMs             = 4000
+	justjoinsource        = "https://justjoin.it/job-offers/" //all-locations/html
 	justjoinprefix        = "https://justjoin.it/"
 	justjoinofferSelector = "a.offer-card"
 )
@@ -52,13 +50,21 @@ func JustJoinScrollAndRead(parentCtx context.Context) ([]string, error) {
 	var urls []string
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.JustjoinDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),
 		chromedp.Flag("disable-gpu", false),
 		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"),
 		chromedp.Flag("disable-web-security", true),
+		//flags for ANR
+		chromedp.Flag("disable-web-security", true),
+		chromedp.Flag("disable-site-isolation-trials", true),
+		chromedp.Flag("disable-background-timer-throttling", true),
+		chromedp.Flag("disable-renderer-backgrounding", true),
+		chromedp.Flag("disable-backgrounding-occluded-windows", true),
+		chromedp.Flag("disable-ipc-flooding-protection", true),
+		//chromedp.Flag("disable-gpu-compositing", true),
 	)
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(parentCtx, opts...)
@@ -66,10 +72,14 @@ func JustJoinScrollAndRead(parentCtx context.Context) ([]string, error) {
 
 	chromeDpCtx, cancelCtx := chromedp.NewContext(allocCtx)
 	defer cancelCtx()
+	//justjoin scraping often crashes, defer for rescuing data
+	defer func() {
+		urls = UniqueSliceElements(urls)
+	}()
 
 	log.Println("JUSTJOINIT: Uruchamianie przeglądarki...")
 
-	err := chromedp.Run(chromeDpCtx,
+	_ = chromedp.Run(chromeDpCtx,
 
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
@@ -139,10 +149,6 @@ func JustJoinScrollAndRead(parentCtx context.Context) ([]string, error) {
 			return nil
 		}),
 	)
-
-	if err != nil {
-		return nil, fmt.Errorf("błąd wykonania chromedp: %w", err)
-	}
 
 	urls = UniqueSliceElements(urls)
 	log.Printf("JUSTJOINIT: Usunięto duplikaty, %v unikalnych linków", len(urls))

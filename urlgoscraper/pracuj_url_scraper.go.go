@@ -2,22 +2,22 @@ package urlsgocraper
 
 import (
 	"context"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/chromedp/cdproto/emulation"
+	"github.com/chromedp/chromedp"
+	"github.com/pfczx/jobscraper/config"
 	"log"
 	"math/rand"
 	"strconv"
 	"strings"
 	"time"
-"github.com/pfczx/jobscraper/config"
-	"github.com/PuerkitoBio/goquery"
-	"github.com/chromedp/cdproto/emulation"
-	"github.com/chromedp/chromedp"
 )
 
 //browser session data dir
 
 const (
-	minTimeS       = 5
-	maxTimeS       = 10
+	minTimeS = 5
+	maxTimeS = 10
 )
 
 func getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
@@ -36,8 +36,8 @@ func getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 		chromedp.WaitVisible("body", chromedp.ByQuery),
 		chromedp.OuterHTML("html", &html),
 	)
-	if err != nil{
-		log.Printf("Error %s",err)
+	if err != nil {
+		log.Printf("Error %s", err)
 	}
 
 	return html, err
@@ -75,18 +75,18 @@ func getMaxPagePracujPl(html string) (int, error) {
 	maxPageNum, _ := strconv.Atoi(strings.TrimSpace(maxPage))
 
 	//testing
-  //return 1,nil
+	//return 1,nil
 	return maxPageNum, nil
 }
 
 func CollectPracujPl(ctx context.Context) []string {
-	source := "https://it.pracuj.pl/praca"
+	source := "https://it.pracuj.pl/praca" //?its=agile
 	urlsSelector := "[data-test=\"link-offer\"]"
 	var urls []string
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.PracujDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),
@@ -94,8 +94,15 @@ func CollectPracujPl(ctx context.Context) []string {
 		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
 			"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"),
 		//chromedp.Flag("proxy-server", proxyList[rand.Intn(len(proxyList))]),
+
+		//flags for ANR
 		chromedp.Flag("disable-web-security", true),
 		chromedp.Flag("disable-site-isolation-trials", true),
+		chromedp.Flag("disable-background-timer-throttling", true), 
+		chromedp.Flag("disable-renderer-backgrounding", true),
+		chromedp.Flag("disable-backgrounding-occluded-windows", true),
+		chromedp.Flag("disable-ipc-flooding-protection", true),
+		chromedp.Flag("disable-gpu-compositing", true),
 	)
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(ctx, opts...)
 	defer cancelAlloc()

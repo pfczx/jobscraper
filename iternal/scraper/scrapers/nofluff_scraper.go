@@ -2,16 +2,16 @@ package scrapers
 
 import (
 	"context"
-	"log"
-	"math/rand"
-	"strings"
-	"time"
-
+	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	"github.com/pfczx/jobscraper/config"
 	"github.com/pfczx/jobscraper/iternal/scraper"
+	"log"
+	"math/rand"
+	"strings"
+	"time"
 )
 
 // selectors
@@ -43,7 +43,7 @@ func NewNoFluffScraper(urls []string) *NoFluffScraper {
 }
 
 func (*NoFluffScraper) Source() string {
-	return "https://nofluffjobs.com/pl"
+	return "nofluffjobs.com"
 }
 
 // extracting data from string html with goquer selectors
@@ -100,7 +100,7 @@ func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.J
 	var htmlBuilder strings.Builder
 
 	//description
-	descText := strings.TrimSpace(doc.Find(descriptionSelector).Text())
+	descText := strings.TrimSpace(doc.Find(nofluffjobsdescriptionSelector).Text())
 	if descText != "" {
 		htmlBuilder.WriteString("<p>" + descText + "</p>\n")
 	}
@@ -187,21 +187,32 @@ func (p *NoFluffScraper) extractDataFromHTML(html string, url string) (scraper.J
 // html chromedp
 func (p *NoFluffScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 	var html string
+	maxRetries := 3
 
-	//chromdp run config
-	err := chromedp.Run(
-		chromeDpCtx,
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
-		}),
-		chromedp.Navigate(url),
-		chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
-		chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
-		chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
-		chromedp.OuterHTML("html", &html),
-	)
-	return html, err
+	for retry := 0; retry < maxRetries; retry++ {
+		err := chromedp.Run(
+			chromeDpCtx,
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
+			}),
+			chromedp.Navigate(url),
+			chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
+			chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
+			chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
+			chromedp.WaitVisible("body", chromedp.ByQuery),
+			chromedp.OuterHTML("html", &html),
+		)
+
+		if err == nil {
+			return html, nil
+		}
+
+		if retry < maxRetries-1 {
+			time.Sleep(time.Second)
+		}
+	}
+
+	return "", fmt.Errorf("Browser crashed 3 times")
 }
 
 // main func for scraping
@@ -209,7 +220,7 @@ func (p *NoFluffScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) 
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.NofluffDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),

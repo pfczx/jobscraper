@@ -1,21 +1,27 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
+	"os"
+	"strings"
 	"sync"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pfczx/jobscraper/iternal"
 	"github.com/pfczx/jobscraper/iternal/scraper"
 	"github.com/pfczx/jobscraper/iternal/scraper/scrapers"
+
 	//"github.com/pyrczuu/urlScraper"
 	//"github.com/pyrczuu/nofluff_scraper"
 	"github.com/pfczx/jobscraper/urlgoscraper"
 )
 
 func main() {
+	reader := bufio.NewReader(os.Stdin)
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 	db, err := sql.Open("sqlite3", "./database/jobs.db")
 	if err != nil {
@@ -24,46 +30,68 @@ func main() {
 	defer db.Close()
 	var wg sync.WaitGroup
 
-	//read only for js backend
-	//_, err = db.Exec("PRAGMA journal_mode=WAL;")
-
 	ctx := context.Background()
 
-	var (
-		noflufUrls,justjoinUrls []string
-	)
-	wg.Add(2)
-/*
-	go func() {
-		defer wg.Done()
-		pracujUrls = urlsgocraper.CollectPracujPl(ctx)
-	}()
-*/
-	go func() {
-		defer wg.Done()
-		noflufUrls, _ = urlsgocraper.NofluffScrollAndRead(ctx)
-	}()
+	for {
+		fmt.Println("1 - urlscraping")
+		fmt.Println("2 - job scraping from url list")
+		fmt.Println("3 - exit")
 
-	go func() {
-		defer wg.Done()
-		justjoinUrls, _ = urlsgocraper.JustJoinScrollAndRead(ctx)
-	}()
+		choice, _ := reader.ReadString('\n')
+		choice = strings.TrimSpace(choice)
 
-	wg.Wait()
+		switch choice {
+		case "1":
+			wg.Add(3)
+			go func() {
+				defer wg.Done()
+				pracujUrls := urlsgocraper.CollectPracujPl(ctx)
+				urlsgocraper.SaveUrls("pracujUrls.txt", pracujUrls)
+			}()
 
+			go func() {
+				defer wg.Done()
+				noflufUrls, _ := urlsgocraper.NofluffScrollAndRead(ctx)
+				urlsgocraper.SaveUrls("noflufUrls.txt", noflufUrls)
+			}()
 
-	scrapersList := []scraper.Scraper{
-		scrapers.NewNoFluffScraper(noflufUrls),
-		//scrapers.NewPracujScraper(pracujUrls),
-		scrapers.NewJustJoinItScraper(justjoinUrls),
+			go func() {
+				defer wg.Done()
+				justjoinUrls, _ := urlsgocraper.JustJoinScrollAndRead(ctx)
+				urlsgocraper.SaveUrls("justjoinUrls.txt", justjoinUrls)
+			}()
+
+			wg.Wait()
+
+		case "2":
+			pracujUrls, _ := urlsgocraper.LoadUrls("pracujUrls.txt")
+			noflufUrls, _ := urlsgocraper.LoadUrls("noflufUrls.txt")
+			justjoinUrls, _ := urlsgocraper.LoadUrls("justjoinUrls.txt")
+
+			scrapersList := []scraper.Scraper{
+				scrapers.NewNoFluffScraper(noflufUrls),
+				scrapers.NewPracujScraper(pracujUrls),
+				scrapers.NewJustJoinItScraper(justjoinUrls),
+			}
+			parralel := false
+			fmt.Println("Type y/yes if u want parralel scraping")
+			choiceParralel, _ := reader.ReadString('\n')
+			choiceParralel = strings.TrimSpace(choiceParralel)
+			if choiceParralel == "y" || choiceParralel =="yes"{
+				parralel = true
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				iternal.StartCollector(ctx, db, scrapersList, parralel)
+			}()
+
+			wg.Wait()
+			log.Println("Scraping Completed")
+		case "3":
+			os.Exit(0)
+		}
+
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		iternal.StartCollector(ctx, db, scrapersList)
-	}()
-
-	wg.Wait()
-	log.Println("Scraping Completed")
 }

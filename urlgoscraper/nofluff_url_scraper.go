@@ -16,7 +16,7 @@ import (
 
 const (
 	// tylko do testow
-	nofluffsource = "https://nofluffjobs.com/pl/Golang"
+	nofluffsource = "https://nofluffjobs.com/pl/" //JavaScript?criteria=requirement%3DUML
 	nofluffprefix = "https://nofluffjobs.com"
 	//nofluffsource        = "https://nofluffjobs.com/pl/artificial-intelligence?criteria=category%3Dsys-administrator,business-analyst,architecture,backend,data,ux,devops,erp,embedded,frontend,fullstack,game-dev,mobile,project-manager,security,support,testing,other"
 	nofluffofferSelector = "a.posting-list-item"
@@ -60,13 +60,21 @@ func NofluffScrollAndRead(parentCtx context.Context) ([]string, error) {
 	var urls []string
 
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.NofluffDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),
 		chromedp.Flag("disable-gpu", false),
 		chromedp.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36"),
 		chromedp.Flag("disable-web-security", true),
+				//flags for ANR
+		chromedp.Flag("disable-web-security", true),
+		chromedp.Flag("disable-site-isolation-trials", true),
+		chromedp.Flag("disable-background-timer-throttling", true), 
+		chromedp.Flag("disable-renderer-backgrounding", true),
+		chromedp.Flag("disable-backgrounding-occluded-windows", true),
+		chromedp.Flag("disable-ipc-flooding-protection", true),
+		chromedp.Flag("disable-gpu-compositing", true),
 	)
 
 	allocCtx, cancelAlloc := chromedp.NewExecAllocator(parentCtx, opts...)

@@ -2,6 +2,7 @@ package scrapers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math/rand"
 	"strings"
@@ -40,7 +41,7 @@ func NewJustJoinItScraper(urls []string) *JustJoinItScraper {
 }
 
 func (*JustJoinItScraper) Source() string {
-	return "https://justjoin.it/"
+	return "justjoin.it"
 }
 
 // extracting data from string html with goquer selectors
@@ -140,21 +141,32 @@ func (p *JustJoinItScraper) extractDataFromHTML(html string, url string) (scrape
 // html chromedp
 func (p *JustJoinItScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 	var html string
+	maxRetries := 3
 
-	//chromdp run config
-	err := chromedp.Run(
-		chromeDpCtx,
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
-		}),
-		chromedp.Navigate(url),
-		chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
-		chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
-		chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
-		chromedp.OuterHTML("html", &html),
-	)
-	return html, err
+	for retry := 0; retry < maxRetries; retry++ {
+		err := chromedp.Run(
+			chromeDpCtx,
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
+			}),
+			chromedp.Navigate(url),
+			chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
+			chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
+			chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
+			chromedp.WaitVisible("body", chromedp.ByQuery),
+			chromedp.OuterHTML("html", &html),
+		)
+
+		if err == nil {
+			return html, nil
+		}
+
+		if retry < maxRetries-1 {
+			time.Sleep(time.Second)
+		}
+	}
+
+	return "", fmt.Errorf("Browser crashed 3 times")
 }
 
 // main func for scraping
@@ -162,7 +174,7 @@ func (p *JustJoinItScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffe
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath("/usr/bin/google-chrome"),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.JustjoinDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),

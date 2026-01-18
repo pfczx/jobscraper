@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"sync"
+	"time"
 )
 
 type JobOffer struct {
@@ -26,24 +27,35 @@ type Scraper interface {
 	Scrape(ctx context.Context, q chan<- JobOffer) error
 }
 
-func RunScrapers(ctx context.Context, scrapers []Scraper) chan JobOffer {
+func RunScrapers(ctx context.Context, scrapers []Scraper, parallel bool) chan JobOffer {
 	out := make(chan JobOffer)
 	var wg sync.WaitGroup
 
-	for _, s := range scrapers {
-		wg.Add(1)
-		go func(scr Scraper) {
-			defer wg.Done()
-			log.Printf("Starting scraper: %s", scr.Source())
-			if err := scr.Scrape(ctx, out); err != nil {
-				log.Printf("Error in scraper %s: %v", scr.Source(), err)
-			}
-			log.Printf("Finished scraper: %s", scr.Source())
-		}(s)
-	}
-
 	go func() {
-		wg.Wait()
+		if parallel {
+			for _, s := range scrapers {
+				time.Sleep(5 * time.Second)
+				wg.Add(1)
+				go func(scr Scraper) {
+					defer wg.Done()
+					log.Printf("Starting scraper: %s", scr.Source())
+					if err := scr.Scrape(ctx, out); err != nil {
+						log.Printf("Error in scraper %s: %v", scr.Source(), err)
+					}
+					log.Printf("Finished scraper: %s", scr.Source())
+				}(s)
+			}
+			wg.Wait()
+		} else {
+			for _, s := range scrapers {
+				log.Printf("Starting scraper: %s", s.Source())
+				if err := s.Scrape(ctx, out); err != nil {
+					log.Printf("Error in scraper %s: %v", s.Source(), err)
+				}
+				log.Printf("Finished scraper: %s", s.Source())
+			}
+		}
+
 		close(out)
 	}()
 

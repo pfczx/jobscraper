@@ -1,14 +1,15 @@
 package scrapers
+
 //pracuj pl scraper
 import (
 	"bufio"
 	"context"
-
+	"fmt"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
-	"github.com/pfczx/jobscraper/iternal/scraper"
 	"github.com/pfczx/jobscraper/config"
+	"github.com/pfczx/jobscraper/iternal/scraper"
 	"log"
 	"math/rand"
 	"os"
@@ -22,21 +23,18 @@ var proxyList = []string{
 
 //browser session data dir
 
-const (
-	browserDir = `/usr/bin/google-chrome-canary`
-)
-
 // selectors
 const (
-	titleSelector           = `h1[data-test="text-positionName"]`
-	companySelector         = `h2[data-scroll-id='employer-name']`
-	locationSelector        = `#offer-details li`
-	descriptionSelector     = `ul[data-test="text-about-project"]`                                                         //concat in code
-	skillsSelector          = `span[data-test="item-technologies-expected"], span[data-test="item-technologies-optional"]` //concat in code
-	salarySectionSelector   = `div[data-test="section-salaryPerContractType"]`
-	requirementsSelector   = `section[data-test="section-requirements"]`
-	responsibilitiesSelector =`section[data-test="section-responsibilities"]`
+	titleSelector            = `h1[data-test="text-positionName"]`
+	companySelector          = `h2[data-scroll-id='employer-name']`
+	locationSelector         = `#offer-details li`
+	descriptionSelector      = `ul[data-test="text-about-project"]`                                                         //concat in code
+	skillsSelector           = `span[data-test="item-technologies-expected"], span[data-test="item-technologies-optional"]` //concat in code
+	salarySectionSelector    = `div[data-test="section-salaryPerContractType"]`
+	requirementsSelector     = `section[data-test="section-requirements"]`
+	responsibilitiesSelector = `section[data-test="section-responsibilities"]`
 )
+
 // wait times are random (min,max) in seconds
 type PracujScraper struct {
 	minTimeS int
@@ -118,12 +116,12 @@ func (p *PracujScraper) extractDataFromHTML(html string, url string) (scraper.Jo
 	var htmlBuilder strings.Builder
 
 	//description
-	descText := strings.TrimSpace(doc.Find(descriptionSelector).Text())	
+	descText := strings.TrimSpace(doc.Find(descriptionSelector).Text())
 	if descText != "" {
 		htmlBuilder.WriteString("<p>" + descText + "</p>\n")
 	}
 
-	//requirements 
+	//requirements
 	doc.Find(requirementsSelector).Each(func(i int, s *goquery.Selection) {
 		heading := strings.TrimSpace(s.Find("h2, h3").First().Text())
 		if heading != "" {
@@ -168,13 +166,13 @@ func (p *PracujScraper) extractDataFromHTML(html string, url string) (scraper.Jo
 	doc.Find(salarySectionSelector).Each(func(_ int, s *goquery.Selection) {
 		text := strings.TrimSpace(s.Text())
 		text = strings.ReplaceAll(text, "\u00A0", " ")
-		text =strings.ReplaceAll(text, "zł", "zł ") 
+		text = strings.ReplaceAll(text, "zł", "zł ")
 
 		lower := strings.ToLower(text)
 		switch {
-		case strings.Contains(lower, "prac") || strings.Contains(lower,"employment"):
+		case strings.Contains(lower, "prac") || strings.Contains(lower, "employment"):
 			job.SalaryEmployment = text
-		case strings.Contains(lower, "zlec") || strings.Contains(lower,"mandate"):
+		case strings.Contains(lower, "zlec") || strings.Contains(lower, "mandate"):
 			job.SalaryContract = text
 		case strings.Contains(lower, "b2b"):
 			job.SalaryB2B = text
@@ -187,21 +185,32 @@ func (p *PracujScraper) extractDataFromHTML(html string, url string) (scraper.Jo
 // html chromedp
 func (p *PracujScraper) getHTMLContent(chromeDpCtx context.Context, url string) (string, error) {
 	var html string
+	maxRetries := 3
 
-	//chromdp run config
-	err := chromedp.Run(
-		chromeDpCtx,
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
-		}),
-		chromedp.Navigate(url),
-		chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
-		chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
-		chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
-		chromedp.WaitVisible("body", chromedp.ByQuery),
-		chromedp.OuterHTML("html", &html),
-	)
-	return html, err
+	for retry := 0; retry < maxRetries; retry++ {
+		err := chromedp.Run(
+			chromeDpCtx,
+			chromedp.ActionFunc(func(ctx context.Context) error {
+				return emulation.SetDeviceMetricsOverride(1280, 900, 1.0, false).Do(ctx)
+			}),
+			chromedp.Navigate(url),
+			chromedp.Evaluate(`delete navigator.__proto__.webdriver`, nil),
+			chromedp.Evaluate(`Object.defineProperty(navigator, "webdriver", { get: () => false })`, nil),
+			chromedp.Sleep(time.Duration(rand.Intn(800)+300)*time.Millisecond),
+			chromedp.WaitVisible("body", chromedp.ByQuery),
+			chromedp.OuterHTML("html", &html),
+		)
+
+		if err == nil {
+			return html, nil
+		}
+
+		if retry < maxRetries-1 {
+			time.Sleep(time.Second)
+		}
+	}
+
+	return "", fmt.Errorf("Browser crashed 3 times")
 }
 
 // main func for scraping
@@ -209,7 +218,7 @@ func (p *PracujScraper) Scrape(ctx context.Context, q chan<- scraper.JobOffer) e
 
 	//chromdp config
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.ExecPath(browserDir),
+		chromedp.ExecPath(config.BrowserDir),
 		chromedp.UserDataDir(config.PracujDataDir),
 		chromedp.Flag("disable-blink-features", "AutomationControlled"),
 		chromedp.Flag("headless", false),

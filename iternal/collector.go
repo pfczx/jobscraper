@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-func StartCollector(ctx context.Context, db *sql.DB, scrapers []scraper.Scraper) {
-	out := scraper.RunScrapers(ctx, scrapers)
+func StartCollector(ctx context.Context, db *sql.DB, scrapers []scraper.Scraper,parallel bool) {
+	out := scraper.RunScrapers(ctx, scrapers,parallel)
 	querier := database.New(db)
 
 	for job := range out {
